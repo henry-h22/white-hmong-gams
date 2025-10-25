@@ -26,4 +26,8 @@ The last main part of our study was to examine if a feed forward neural network 
 
 In `modeling`, the neural network was trained to predict the embeddings from `context_embeddings` from pitch contours (constructed using the GAMs in `GAMs`). As no data is presented alongside this code, this folder is mostly given to show details of our architecture and workflow. There is also a subfolder, `results`, which presents a number of visualizations of the results of this portion of the study:
 
-(coming soon)
+- `accuracy_comparison.png` lets us compare accuracy accross models trained with word-agnostic predicted contours, and those which were predicted using word information. The values shown were made using cross-validation, meaning for each type of input vector, 5 models were trained (40 epochs each), each using a different 20% split of the data as the held-out test set. Accuracy was then calculated for both seen and unseen data by having the model run inference on an input, and then counting a success whenever the word type of the closest vector in the output space had the same word type as the correct output. Then accuracy was averaged over the 5 models to create the values shown on `accuracy_comparison.png`.
+
+- `confusion_matrix_{non-word, word}.png` show confusion matrices for unseen data. This allows us to see how many times the model trained on tonal contours from the game that {did not, did} have access to word type information predict, e.g. *qav* when it should have predicted *kuv*.
+
+- `word_distribution.png` is a natural companion to `confusion_matrix_{non-word, word}.png`, as both models clearly decided predicting *qav* and *tsov* was the best course of action to minimize loss, which is a problem that could easily be caused by class imbalance.
