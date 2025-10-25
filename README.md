@@ -21,3 +21,9 @@ The plots seen in `plots` are the main results of this study. They present the c
 ## context_embeddings
 
 The last main part of our study was to examine if a feed forward neural network could predict word meaning from tonal contour alone. Before performing such an experiment, some mathematical representation of "meaning" needed to be constructed. We did so using OpenAI's [text-embedding-3-large](https://platform.openai.com/docs/models/text-embedding-3-large) model, averaging the embedding of a context window with that of the word itself. This folder contains the code with which those embeddings were created. It also contains `PCA_norm.png`, which is a plot of the relative position of embeddings based on NormalizedWord, using PCA to go from 3072 dimensions to 2.
+
+## modeling
+
+In `modeling`, the neural network was trained to predict the embeddings from `context_embeddings` from pitch contours (constructed using the GAMs in `GAMs`). As no data is presented alongside this code, this folder is mostly given to show details of our architecture and workflow. There is also a subfolder, `results`, which presents a number of visualizations of the results of this portion of the study:
+
+(coming soon)
