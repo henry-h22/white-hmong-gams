@@ -31,3 +31,7 @@ In `modeling`, the neural network was trained to predict the embeddings from `co
 - `confusion_matrix_{non-word, word}.png` show confusion matrices for unseen data. This allows us to see how many times the model trained on tonal contours from the game that {did not, did} have access to word type information predict, e.g. *qav* when it should have predicted *kuv*.
 
 - `word_distribution.png` is a natural companion to `confusion_matrix_{non-word, word}.png`, as both models clearly decided predicting *qav* and *tsov* was the best course of action to minimize loss, which is a problem that could easily be caused by class imbalance.
+
+## side_experiments
+
+Two side experiments were performed as part of this project, and the corresponding code and results are given in these subfolders. Those subfolders (ideally) contain all of the necessary information about these experiments.
