@@ -209,3 +209,5 @@ measurements/.DS_Store
 .DS_Store
 all_tones/.Rhistory
 all_tones/.RData
+side_experiments/all_tones/.RData
+side_experiments/all_tones/.Rhistory
