@@ -1,0 +1,444 @@
+---
+title: "White Hmong GAMs"
+author: "Henry Heyden"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Libraries
+library(tidyverse)
+library(mgcv)
+library(sjlabelled)
+
+# Data loading helper function!
+high_tones <- list('b', 'j', 'g')
+med_low_tones <- list('0', 's', 'v', 'm', 'd') # Redundant but good info
+
+prepareData <- function(df, duration_dataframe, utterance_position_dataframe) {
+  df <- as_factor(df, Filename, Speaker, Tone, Word, NormalizedWord, ui, uf, p, df, PreviousTone)
+  newdata <- df %>% 
+    left_join(duration_dataframe, by = 'token_id') %>% 
+    left_join(utterance_position_dataframe, by = 'token_id') %>% 
+    mutate(
+      UtterancePosition = case_when(
+        p == 1 ~ 'X', # do not use (pause)
+        df == 1 ~ 'X', # do not use (disfluency)
+        ui == 1 ~ 'INITIAL', # initial
+        uf == 1 ~ 'FINAL', # final
+        TRUE ~ 'MEDIAL' # medial
+      ),
+      PreviousToneHeight = case_when(
+        PreviousTone %in% high_tones ~ 'High',
+        TRUE ~ 'MED/LOW'
+      )
+    )
+  newdata <- newdata %>%
+    filter(!(UtterancePosition == 'X')) %>% filter(!(is.na(F0))) %>% select(!(ui:df))
+  return(as_factor(newdata, Filename, Speaker, Tone, Word,
+                   NormalizedWord, PreviousTone, PreviousToneHeight, UtterancePosition))
+}
+
+hmongDataV <- prepareData(read_csv("normalized_AVG_R/hmongData-v-ST_AVG-R.csv"),
+                          read_csv("duration_csvs/hmongData-v.csv"),
+                          read_csv("utterance_position/hmongUtt-v.csv"))
+```
+
+First we'll model the tone without NormalizedWord, then add it in.
+
+```{r echo=TRUE}
+overall_gam_v = gam(F0 ~ Speaker +
+                      s(NormalizedTime, Speaker, bs = 'fs', m = 2) +
+                      s(UtterancePosition_continuous) +
+                      ti(NormalizedTime, UtterancePosition_continuous) +
+                      s(NormalizedTime, PreviousToneHeight, bs = 'fs', m = 2) +
+                      s(Duration) + ti(NormalizedTime, Duration)
+                    , data = hmongDataV, method = 'REML')
+
+summary(overall_gam_v)
+plot(overall_gam_v, shade = TRUE, main = 'Tone -v. Big Gam! (No Word Type)')
+```
+
+```{r echo=TRUE}
+overall_gam_v_WORD = gam(F0 ~ Speaker +
+                      s(NormalizedTime, Speaker, bs = 'fs', m = 2) +
+                      s(UtterancePosition_continuous) +
+                      ti(NormalizedTime, UtterancePosition_continuous) +
+                      s(NormalizedTime, PreviousToneHeight, bs = 'fs', m = 2) +
+                      s(Duration) + ti(NormalizedTime, Duration) +
+                      s(NormalizedTime, NormalizedWord, bs = 'fs', m = 2)
+                    , data = hmongDataV, method = 'REML')
+
+summary(overall_gam_v_WORD)
+plot(overall_gam_v_WORD, shade = TRUE, main = 'Tone -v. Big Gam! (Including Word Type)')
+```
+
+# PLOTS
+
+```{r echo=TRUE, message=FALSE}
+# Plotting just the tone itself
+pd <- data.frame(NormalizedTime = seq(0, 1, by = 0.001)) %>% 
+  mutate(
+    Speaker = "Ellina",
+    UtterancePosition_continuous = 0.5,
+    PreviousToneHeight = "MED/LOW",
+    Duration = 0.157
+  )
+
+pr <- predict(overall_gam_v, newdata = pd, type = "response")
+
+
+quartzFonts(times = quartzFont(c("Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic")))
+
+
+plot(NULL, xlim=c(0,1), ylim=c(-4,0), ylab="Fundamental Frequency (st)", xlab="Normalized Time", main = " ", family = "times", cex.lab = 1.4722)
+
+lines(pd$NormalizedTime, pr, col = 'red3',    lwd = 2.2)
+
+```
+
+```{r echo=TRUE, message=FALSE}
+# Plotting Duration
+pd <- data.frame(NormalizedTime = seq(0, 1, by = 0.001)) %>% 
+  mutate(
+    Speaker = "Ellina",
+    UtterancePosition_continuous = 0.5,
+    PreviousToneHeight = "MED/LOW"
+  )
+
+# 5 levels of duration, the 5 quartiles
+#         0%        25%        50%        75%       100% 
+# 0.03316624 0.10932262 0.15708892 0.24837071 0.81489777 
+pd_0 <- pd %>% mutate(
+  Duration = 0.03316624
+)
+pd_25 <- pd %>% mutate(
+  Duration = 0.10932262
+)
+pd_50 <- pd %>% mutate(
+  Duration = 0.15708892
+)
+pd_75 <- pd %>% mutate(
+  Duration = 0.24837071
+)
+pd_100 <- pd %>% mutate(
+  Duration = 0.81489777
+)
+
+pr_0 <- predict(overall_gam_v, newdata = pd_0, type = "response")
+pr_25 <- predict(overall_gam_v, newdata = pd_25, type = "response")
+pr_50 <- predict(overall_gam_v, newdata = pd_50, type = "response")
+pr_75 <- predict(overall_gam_v, newdata = pd_75, type = "response")
+pr_100 <- predict(overall_gam_v, newdata = pd_100, type = "response")
+
+plot(NULL, xlim=c(0,1), ylim=c(-3,4), ylab="Fundamental Frequency (st)", xlab="Normalized Time", main = " ", family = "times", cex.lab = 1.4722)
+
+lines(pd$NormalizedTime, pr_0, col = 'darkorange',    lwd = 2.2, lty = 3)
+lines(pd$NormalizedTime, pr_25, col = 'darkorange1',  lwd = 2.2, lty = 2)
+lines(pd$NormalizedTime, pr_50, col = 'darkorange2',  lwd = 2.2, lty = 1)
+lines(pd$NormalizedTime, pr_75, col = 'darkorange3',  lwd = 2.2, lty = 4)
+lines(pd$NormalizedTime, pr_100, col = 'darkorange4', lwd = 2.2, lty = 5)
+
+
+op <- par(cex = 1, family = "times")
+
+legend("topright", legend=c("0.03s", "0.1s", "0.16s", "0.25s", "0.8s"),
+       fill=c(
+        'darkorange',
+        'darkorange1',
+        'darkorange2',
+        'darkorange3',
+        'darkorange4'
+        ), col = c(
+        'darkorange',
+        'darkorange1',
+        'darkorange2',
+        'darkorange3',
+        'darkorange4'
+        ), lty=c(3, 2, 1, 4, 5), lwd = 2.2, horiz = T, inset = 0)
+
+```
+
+
+```{r echo=TRUE, message=FALSE}
+# Plotting Duration
+pd <- data.frame(NormalizedTime = seq(0, 1, by = 0.001)) %>% 
+  mutate(
+    Speaker = "Ellina",
+    UtterancePosition_continuous = 0.5,
+    Duration = 0.15708892
+  )
+
+pd_medlow <- pd %>% mutate(
+  PreviousToneHeight = "MED/LOW"
+)
+pd_high <- pd %>% mutate(
+  PreviousToneHeight = "High"
+)
+
+pr_medlow <- predict(overall_gam_v, newdata = pd_medlow, type = "response")
+pr_high <- predict(overall_gam_v, newdata = pd_high, type = "response")
+
+plot(NULL, xlim=c(0,1), ylim=c(-3.5,0.5), ylab="Fundamental Frequency (st)", xlab="Normalized Time", main = " ", family = "times", cex.lab = 1.4722)
+
+lines(pd$NormalizedTime, pr_medlow, col = 'brown1',      lwd = 2.2, lty = 2)
+lines(pd$NormalizedTime, pr_high, col = 'lightskyblue1', lwd = 2.2)
+
+op <- par(cex = 1.589222, family = "times")
+
+legend("bottomleft", legend=c("Mid/Low", "High"),
+       fill=c(
+        'brown1',
+        'lightskyblue1'
+        ), col = c(
+        'brown1',
+        'lightskyblue1'
+        ), lty=c(2, 1), lwd = 2.2, horiz = TRUE, inset = 0)
+
+
+```
+
+```{r echo=TRUE, message=FALSE}
+# Plotting Utterance Position
+pd <- data.frame(NormalizedTime = seq(0, 1, by = 0.001)) %>% 
+  mutate(
+    Speaker = "Ellina",
+    Duration = 0.15708892,
+    PreviousToneHeight = "MED/LOW"
+  )
+
+# 5 levels of utt_pos, the 5 quartiles
+#         0%        25%        50%        75%       100% 
+# 0.03316624 0.10932262 0.15708892 0.24837071 0.81489777 
+pd_0 <- pd %>% mutate(
+  UtterancePosition_continuous = 0
+)
+pd_25 <- pd %>% mutate(
+  UtterancePosition_continuous = 0.25
+)
+pd_50 <- pd %>% mutate(
+  UtterancePosition_continuous = 0.5
+)
+pd_75 <- pd %>% mutate(
+  UtterancePosition_continuous = 0.75
+)
+pd_100 <- pd %>% mutate(
+  UtterancePosition_continuous = 1
+)
+
+pr_0 <- predict(overall_gam_v, newdata = pd_0, type = "response")
+pr_25 <- predict(overall_gam_v, newdata = pd_25, type = "response")
+pr_50 <- predict(overall_gam_v, newdata = pd_50, type = "response")
+pr_75 <- predict(overall_gam_v, newdata = pd_75, type = "response")
+pr_100 <- predict(overall_gam_v, newdata = pd_100, type = "response")
+
+plot(NULL, xlim=c(0,1), ylim=c(-3.0,-1.75), ylab="Fundamental Frequency (st)", xlab="Normalized Time", main = "", family = "times", cex.lab = 1.4722)
+
+lines(pd$NormalizedTime, pr_0, col = 'darkorange',    lwd = 2.2, lty = 3)
+lines(pd$NormalizedTime, pr_25, col = 'darkorange1',  lwd = 2.2, lty = 2)
+lines(pd$NormalizedTime, pr_50, col = 'darkorange2',  lwd = 2.2, lty = 1)
+lines(pd$NormalizedTime, pr_75, col = 'darkorange3',  lwd = 2.2, lty = 4)
+lines(pd$NormalizedTime, pr_100, col = 'darkorange4', lwd = 2.2, lty = 5)
+
+op <- par(cex = 1.122, family = "times")
+
+legend("topright", legend=c("0", "0.25", "0.5", "0.75", "1"),
+       fill=c(
+        'darkorange',
+        'darkorange1',
+        'darkorange2',
+        'darkorange3',
+        'darkorange4'
+        ), col = c(
+        'darkorange',
+        'darkorange1',
+        'darkorange2',
+        'darkorange3',
+        'darkorange4'
+        ), lty=c(3, 2, 1, 4, 5), lwd = 2.2, horiz = TRUE, inset = 0)
+
+
+```
+
+```{r echo=TRUE, message=FALSE}
+# Plotting Speaker
+pd <- data.frame(NormalizedTime = seq(0, 1, by = 0.001)) %>% 
+  mutate(
+    Duration = 0.157,
+    UtterancePosition_continuous = 0.5,
+    PreviousToneHeight = "MED/LOW"
+  )
+
+# speakers:
+# ['Cha', 'Chingla', 'Ellina', 'Gozong', 'Long', 'MaiXee', 'MaiXor', 'Ma']
+pd_cha <- pd %>% mutate(
+  Speaker = 'Cha'
+)
+pd_chingla <- pd %>% mutate(
+  Speaker = 'Chingla'
+)
+pd_ellina <- pd %>% mutate(
+  Speaker = 'Ellina'
+)
+pd_gozong <- pd %>% mutate(
+  Speaker = 'Gozong'
+)
+pd_long <- pd %>% mutate(
+  Speaker = 'Long'
+)
+pd_maixee <- pd %>% mutate(
+  Speaker = 'MaiXee'
+)
+pd_maixor <- pd %>% mutate(
+  Speaker = 'MaiXor'
+)
+pd_ma <- pd %>% mutate(
+  Speaker = 'Ma'
+)
+
+pr_cha        <- predict(overall_gam_v, newdata = pd_cha, type = "response")
+pr_chingla    <- predict(overall_gam_v, newdata = pd_chingla, type = "response")
+pr_ellina     <- predict(overall_gam_v, newdata = pd_ellina, type = "response")
+pr_gozong     <- predict(overall_gam_v, newdata = pd_gozong, type = "response")
+pr_long       <- predict(overall_gam_v, newdata = pd_long, type = "response")
+pr_maixee     <- predict(overall_gam_v, newdata = pd_maixee, type = "response")
+pr_maixor     <- predict(overall_gam_v, newdata = pd_maixor, type = "response")
+pr_ma         <- predict(overall_gam_v, newdata = pd_ma, type = "response")
+
+plot(NULL, xlim=c(0,1), ylim=c(-4.5,0.0), ylab="Fundamental Frequency (st)", xlab="Normalized Time", main = " ", family = "times", cex.lab = 1.4722)
+
+lines(pd$NormalizedTime, pr_cha    , col = 'gray11', lwd = 2.2, lty = "2262")
+lines(pd$NormalizedTime, pr_chingla, col = 'steelblue1', lwd = 2.2, lty = "dotted")
+lines(pd$NormalizedTime, pr_ellina , col = 'seagreen2', lwd = 2.2, lty = "44")
+lines(pd$NormalizedTime, pr_gozong , col = 'indianred2', lwd = 2.2)
+lines(pd$NormalizedTime, pr_long   , col = 'darkorchid2', lwd = 2.2, lty = "dotdash")
+lines(pd$NormalizedTime, pr_maixee , col = 'sandybrown', lwd = 2.2, lty = "13")
+lines(pd$NormalizedTime, pr_maixor , col = 'palevioletred3', lwd = 2.2, lty = "longdash")
+lines(pd$NormalizedTime, pr_ma     , col = 'green4', lwd = 2.2, lty = "dashed")
+
+op <- par(cex = 0.89, family = "times")
+
+# Speakers: "Ellina", "Gozong", "Cha", "Long", "MaiXee", "MaiXor", "Chingla", "Ma"
+# Numbers:     1        2         3       4       5         6           7       8
+legend("topright", legend=c("1", "2", "3", "4", "5", "6", "7", "8"),
+       fill=c(
+          'seagreen2',
+          'indianred2',
+          'gray11',
+          'darkorchid2',
+          'sandybrown',
+          'palevioletred3',
+          'steelblue1',
+          'green4'), col = c(
+          'seagreen2',
+          'indianred2',
+          'gray11',
+          'darkorchid2',
+          'sandybrown',
+          'palevioletred3',
+          'steelblue1',
+          'green4'), lty=c("44", "solid", "2262", "dotdash", "13", "longdash", "dotted", "dashed"), lwd = 2.2, horiz = T, inset = 0)
+
+```
+
+```{r echo=TRUE, message=FALSE}
+# Plotting Word Type
+pd <- data.frame(NormalizedTime = seq(0, 1, by = 0.001)) %>% 
+  mutate(
+    Speaker = "Ellina",
+    Duration = 0.157,
+    UtterancePosition_continuous = 0.5,
+    PreviousToneHeight = "MED/LOW"
+  )
+
+# words:
+# rov, qav, tsov, kuv, yuav, heev, X
+pd_rov <- pd %>% mutate(
+  NormalizedWord = "rov"
+)
+pd_qav <- pd %>% mutate(
+  NormalizedWord = "qav"
+)
+pd_tsov <- pd %>% mutate(
+  NormalizedWord = "tsov"
+)
+pd_kuv <- pd %>% mutate(
+  NormalizedWord = "kuv"
+)
+pd_yuav <- pd %>% mutate(
+  NormalizedWord = "yuav"
+)
+pd_heev <- pd %>% mutate(
+  NormalizedWord = "heev"
+)
+pd_x <- pd %>% mutate(
+  NormalizedWord = "X"
+)
+
+pr_rov        <- predict(overall_gam_v_WORD, newdata = pd_rov, type = "response")
+pr_qav    <- predict(overall_gam_v_WORD, newdata = pd_qav, type = "response")
+pr_tsov     <- predict(overall_gam_v_WORD, newdata = pd_tsov, type = "response")
+pr_kuv     <- predict(overall_gam_v_WORD, newdata = pd_kuv, type = "response")
+pr_yuav       <- predict(overall_gam_v_WORD, newdata = pd_yuav, type = "response")
+pr_heev   <- predict(overall_gam_v_WORD, newdata = pd_heev, type = "response")
+pr_x     <- predict(overall_gam_v_WORD, newdata = pd_x, type = "response")
+
+plot(NULL, xlim=c(0,1), ylim=c(-3.0,-0), ylab="Fundamental Frequency (st)", xlab="Normalized Time", main = " ", family = "times", cex.lab = 1.4722)
+
+lines(pd$NormalizedTime, pr_rov , col = 'steelblue1', lwd = 2.2, lty = "dotted")
+lines(pd$NormalizedTime, pr_qav , col = 'seagreen2', lwd = 2.2, lty = "44")
+lines(pd$NormalizedTime, pr_tsov, col = 'indianred2', lwd = 2.2)
+lines(pd$NormalizedTime, pr_kuv , col = 'darkorchid2', lwd = 2.2, lty = "dotdash")
+lines(pd$NormalizedTime, pr_yuav, col = 'sandybrown', lwd = 2.2, lty = "13")
+lines(pd$NormalizedTime, pr_heev, col = 'palevioletred3', lwd = 2.2, lty = "longdash")
+# lines(pd$NormalizedTime, pr_x   , col = 'green4', lwd = 2.2, lty = "dashed")
+
+op <- par(cex = 0.922, family = "times")
+
+legend("topright", legend=c("qav", "tsov", "kuv", "yuav", "heev", "rov"),
+       fill=c(
+          'seagreen2',
+          'indianred2',
+          'darkorchid2',
+          'sandybrown',
+          'palevioletred3',
+          'steelblue1'
+          # 'green4'
+          ), col = c(
+          'seagreen2',
+          'indianred2',
+          'darkorchid2',
+          'sandybrown',
+          'palevioletred3',
+          'steelblue1'
+          # 'green4'
+          ), lty=c("44", "solid", "dotdash", "13", "longdash", "dotted"), lwd = 2.2, horiz = T, inset = 0)
+
+```
+
+
+# CREATING CONTOUR VECTORS:
+
+```{r eval=FALSE, include=TRUE}
+# Create fresh dataframe for prediction
+v_prediction_data <- data.frame(token_id = seq(0, 1767, by = 1)) %>% 
+  left_join(hmongDataV, multiple = "any", unmatched = "drop", by = join_by(token_id)) %>% 
+  filter(!is.na(Filename)) %>% 
+  select(token_id, Speaker, Word, NormalizedWord, UtterancePosition_continuous, PreviousToneHeight, Duration) %>% 
+  uncount(50, .id = "NormalizedTime") %>% 
+  mutate(NormalizedTime = NormalizedTime/50)
+
+# Do the predictions
+v_predictions = predict(overall_gam_v, newdata = v_prediction_data, type = "response")
+v_word_predictions = predict(overall_gam_v_WORD, newdata = v_prediction_data, type = "response")
+
+# Join!
+v_prediction_data$prediction <- as.double(v_predictions)
+v_prediction_data$word_prediction <- as.double(v_word_predictions)
+
+# Write to csv
+write_csv(v_prediction_data, file = "tone_vectors_raw.csv")
+```
+
