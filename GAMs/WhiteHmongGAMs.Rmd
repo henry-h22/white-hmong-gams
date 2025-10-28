@@ -320,8 +320,6 @@ lines(pd$NormalizedTime, pr_ma     , col = 'green4', lwd = 2.2, lty = "dashed")
 
 op <- par(cex = 0.89, family = "times")
 
-# Speakers: "Ellina", "Gozong", "Cha", "Long", "MaiXee", "MaiXor", "Chingla", "Ma"
-# Numbers:     1        2         3       4       5         6           7       8
 legend("topright", legend=c("1", "2", "3", "4", "5", "6", "7", "8"),
        fill=c(
           'seagreen2',
